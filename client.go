@@ -226,6 +226,10 @@ func (c *client) mainloop(params *LookupParams) {
 				if _, ok := sentEntries[k]; ok {
 					continue
 				}
+				// Require at least one resolved IP address for ServiceEntry
+				if e.AddrIPv4 == nil && e.AddrIPv6 == nil {
+					continue
+				}
 				params.Entries <- e
 				sentEntries[k] = e
 			}
