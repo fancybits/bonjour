@@ -15,6 +15,11 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
+const (
+	// Number of Multicast responses sent for a query message (default: 1 < x < 9)
+	multicastRepitions = 1
+)
+
 var (
 	localDomain = "local"
 
@@ -574,7 +579,7 @@ func (s *Server) probe() {
 	q.Ns = []dns.RR{srv, txt}
 
 	randomizer := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < 3; i++ {
+	for i := 0; i < multicastRepitions; i++ {
 		if err := s.multicastResponse(q); err != nil {
 			log.Println("[ERR] bonjour: failed to send probe:", err.Error())
 		}
@@ -594,7 +599,7 @@ func (s *Server) probe() {
 	//    provided that the interval between unsolicited responses increases by
 	//    at least a factor of two with every response sent.
 	timeout := 1 * time.Second
-	for i := 0; i < 3; i++ {
+	for i := 0; i < multicastRepitions; i++ {
 		if err := s.multicastResponse(resp); err != nil {
 			log.Println("[ERR] bonjour: failed to send announcement:", err.Error())
 		}
@@ -648,17 +653,17 @@ func (s *Server) unicastResponse(resp *dns.Msg, from net.Addr) error {
 }
 
 // multicastResponse us used to send a multicast response packet
-func (c *Server) multicastResponse(msg *dns.Msg) error {
+func (s *Server) multicastResponse(msg *dns.Msg) error {
 	buf, err := msg.Pack()
 	if err != nil {
 		log.Println("Failed to pack message!")
 		return err
 	}
-	if c.ipv4conn != nil {
-		c.ipv4conn.WriteTo(buf, ipv4Addr)
+	if s.ipv4conn != nil {
+		s.ipv4conn.WriteTo(buf, ipv4Addr)
 	}
-	if c.ipv6conn != nil {
-		c.ipv6conn.WriteTo(buf, ipv6Addr)
+	if s.ipv6conn != nil {
+		s.ipv6conn.WriteTo(buf, ipv6Addr)
 	}
 	return nil
 }
