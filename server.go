@@ -56,22 +56,16 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 		return nil, err
 	}
 
-	for _, intf := range intfs {
-		if strings.HasPrefix(intf.Name, "docker") || strings.HasPrefix(intf.Name, "tun") || strings.HasPrefix(intf.Name, "bridge") || strings.HasPrefix(intf.Name, "lxcbr") {
-			continue
-		}
-
-		addrs, err := intf.Addrs()
-		if err != nil {
-			return nil, err
-		}
-		for _, address := range addrs {
-			// check the address type and if it is not a loopback the display it
-			if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && !ipnet.IP.IsLinkLocalUnicast() {
-				if ipnet.IP.To4() != nil {
-					entry.AddrIPv4 = append(entry.AddrIPv4, ipnet.IP)
-				} else if ipnet.IP.To16() != nil {
+	for _, address := range iaddrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				entry.AddrIPv4 = append(entry.AddrIPv4, ipnet.IP)
+			} else if ipnet.IP.To16() != nil {
+				if ipnet.IP.IsGlobalUnicast() {
 					entry.AddrIPv6 = append(entry.AddrIPv6, ipnet.IP)
+					log.Printf("Added global IPv6: %v\n", ipnet.IP)
+				} else {
+					log.Printf("Skipped IPv6: %v\n", ipnet.IP)
 				}
 			}
 		}
@@ -99,7 +93,7 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 
 // Register a service proxy by given argument. This call will skip the hostname/IP lookup and
 // will use the provided values.
-func RegisterProxy(instance, service, domain string, port int, host, ips []string, text []string, ifaces []net.Interface) (*Server, error) {
+func RegisterProxy(instance, service, domain string, port int, host string, ips []string, text []string, ifaces []net.Interface) (*Server, error) {
 	entry := NewServiceEntry(instance, service, domain)
 	entry.Port = port
 	entry.Text = text
