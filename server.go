@@ -636,7 +636,7 @@ func (s *Server) multicastResponse(msg *dns.Msg) error {
 		var wcm ipv4.ControlMessage
 		for ifi := range s.ifaces {
 			wcm.IfIndex = s.ifaces[ifi].Index
-			s.ipv4conn.WriteTo(buf, nil, ipv4Addr)
+			s.ipv4conn.WriteTo(buf, &wcm, ipv4Addr)
 		}
 	}
 
