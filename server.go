@@ -356,7 +356,6 @@ func isKnownAnswer(resp *dns.Msg, query *dns.Msg) bool {
 		}
 		ptr := known.(*dns.PTR)
 		if ptr.Ptr == answer.Ptr && hdr.Ttl >= answer.Hdr.Ttl/2 {
-			log.Printf("skipping known answer: %v", ptr)
 			return true
 		}
 	}
@@ -586,7 +585,7 @@ func (s *Server) probe() {
 
 	for i := 0; i < multicastRepetitions; i++ {
 		if err := s.multicastResponse(q); err != nil {
-			log.Println("[ERR] zeroconf: failed to send probe:", err.Error())
+			log.Println("[ERR] bonjour: failed to send probe:", err.Error())
 		}
 		time.Sleep(time.Duration(randomizer.Intn(250)) * time.Millisecond)
 	}
@@ -606,7 +605,7 @@ func (s *Server) probe() {
 	timeout := 1 * time.Second
 	for i := 0; i < multicastRepetitions; i++ {
 		if err := s.multicastResponse(resp); err != nil {
-			log.Println("[ERR] zeroconf: failed to send announcement:", err.Error())
+			log.Println("[ERR] bonjour: failed to send announcement:", err.Error())
 		}
 		time.Sleep(timeout)
 		timeout *= 2
@@ -661,7 +660,6 @@ func (s *Server) unicastResponse(resp *dns.Msg, from net.Addr) error {
 func (s *Server) multicastResponse(msg *dns.Msg) error {
 	buf, err := msg.Pack()
 	if err != nil {
-		log.Println("Failed to pack message!")
 		return err
 	}
 	if s.ipv4conn != nil {
