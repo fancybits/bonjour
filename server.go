@@ -387,7 +387,7 @@ func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg) e
 		s.composeLookupAnswers(resp, s.ttl)
 
 	case s.Service.HostName:
-		s.composeLookupAnswers(resp, s.ttl)
+		s.composeLookupHostnameAnswers(resp, s.ttl)
 	}
 
 	return nil
@@ -501,6 +501,10 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32) {
 	}
 	resp.Answer = append(resp.Answer, srv, txt, ptr, dnssd)
 
+	s.composeLookupHostnameAnswers(resp, ttl)
+}
+
+func (s *Server) composeLookupHostnameAnswers(resp *dns.Msg, ttl uint32) {
 	for _, ipv4 := range s.Service.AddrIPv4 {
 		a := &dns.A{
 			Hdr: dns.RR_Header{
