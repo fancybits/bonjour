@@ -35,7 +35,7 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 		return nil, fmt.Errorf("Missing service name")
 	}
 	if entry.Domain == "" {
-		entry.Domain = localDomain
+		entry.Domain = "local"
 	}
 	if entry.Port == 0 {
 		return nil, fmt.Errorf("Missing port")
@@ -73,13 +73,8 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
 				entry.AddrIPv4 = append(entry.AddrIPv4, ipnet.IP)
-			} else if ipnet.IP.To16() != nil {
-				if ipnet.IP.IsGlobalUnicast() {
-					entry.AddrIPv6 = append(entry.AddrIPv6, ipnet.IP)
-					log.Printf("Added global IPv6: %v\n", ipnet.IP)
-				} else {
-					log.Printf("Skipped IPv6: %v\n", ipnet.IP)
-				}
+			} else if ipnet.IP.To16() != nil && ipnet.IP.IsGlobalUnicast() {
+				entry.AddrIPv6 = append(entry.AddrIPv6, ipnet.IP)
 			}
 		}
 	}
@@ -106,7 +101,7 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 
 // Register a service proxy by given argument. This call will skip the hostname/IP lookup and
 // will use the provided values.
-func RegisterProxy(instance, service, domain string, port int, host string, ips []string, text []string, ifaces []net.Interface) (*Server, error) {
+func RegisterProxy(instance, service, domain string, port int, host string, ips []string, text []string, ifaces []net.Interface, ttl uint32) (*Server, error) {
 	entry := NewServiceEntry(instance, service, domain)
 	entry.Port = port
 	entry.Text = text
@@ -122,7 +117,7 @@ func RegisterProxy(instance, service, domain string, port int, host string, ips 
 		return nil, fmt.Errorf("Missing host name")
 	}
 	if entry.Domain == "" {
-		entry.Domain = localDomain
+		entry.Domain = "local"
 	}
 	if entry.Port == 0 {
 		return nil, fmt.Errorf("Missing port")
@@ -185,11 +180,11 @@ func newServer(ifaces []net.Interface) (*Server, error) {
 
 	ipv4conn, err4 := joinUdp4Multicast(ifaces)
 	if err4 != nil {
-		log.Printf("[zeroconf] no suitable IPv4 interface: %s", err4.Error())
+		log.Printf("[ERR] bonjour: no suitable IPv4 interface: %s", err4.Error())
 	}
 	ipv6conn, err6 := joinUdp6Multicast(ifaces)
 	if err6 != nil {
-		log.Printf("[zeroconf] no suitable IPv6 interface: %s", err6.Error())
+		log.Printf("[ERR] bonjour: no suitable IPv6 interface: %s", err6.Error())
 	}
 	if err4 != nil && err6 != nil {
 		// No supported interface left.
@@ -259,13 +254,13 @@ func (s *Server) recv4(c *ipv4.PacketConn) {
 		return
 	}
 	buf := make([]byte, 65536)
-	for !s.shouldShutdown {
+	for !s.shuttingDown {
 		n, _, from, err := c.ReadFrom(buf)
 		if err != nil {
 			continue
 		}
 		if err := s.parsePacket(buf[:n], from); err != nil {
-			log.Printf("[ERR] zeroconf: failed to handle query v4: %v", err)
+			log.Printf("[ERR] bonjour: failed to handle query v4: %v", err)
 		}
 	}
 }
@@ -282,7 +277,7 @@ func (s *Server) recv6(c *ipv6.PacketConn) {
 			continue
 		}
 		if err := s.parsePacket(buf[:n], from); err != nil {
-			log.Printf("[ERR] zeroconf: failed to handle query v6: %v", err)
+			log.Printf("[ERR] bonjour: failed to handle query v6: %v", err)
 		}
 	}
 }
@@ -321,8 +316,7 @@ func (s *Server) handleQuery(query *dns.Msg, from net.Addr) error {
 			resp.Answer = []dns.RR{}
 			resp.Extra = []dns.RR{}
 			if err = s.handleQuestion(q, &resp); err != nil {
-				log.Printf("[ERR] zeroconf: failed to handle question %v: %v",
-					q, err)
+				log.Printf("[ERR] bonjour: failed to handle question %v: %v", q, err)
 				continue
 			}
 			// Check if there is an answer
