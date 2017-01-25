@@ -506,7 +506,7 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32) {
 			},
 			A: ipv4,
 		}
-		resp.Extra = append(resp.Extra, a)
+		resp.Answer = append(resp.Answer, a)
 	}
 	for _, ipv6 := range s.Service.AddrIPv6 {
 		aaaa := &dns.AAAA{
@@ -518,7 +518,7 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32) {
 			},
 			AAAA: ipv6,
 		}
-		resp.Extra = append(resp.Extra, aaaa)
+		resp.Answer = append(resp.Answer, aaaa)
 	}
 }
 
@@ -582,6 +582,7 @@ func (s *Server) probe() {
 	}
 	resp := new(dns.Msg)
 	resp.MsgHdr.Response = true
+	// TODO: make response authoritative if we are the publisher
 	resp.Answer = []dns.RR{}
 	resp.Extra = []dns.RR{}
 	s.composeLookupAnswers(resp, s.ttl)
