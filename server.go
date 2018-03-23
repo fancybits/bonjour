@@ -182,6 +182,10 @@ func newServer(ifaces []net.Interface) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) Service() *ServiceEntry {
+	return s.service
+}
+
 // Start listeners and waits for the shutdown signal from exit channel
 func (s *Server) mainloop() {
 	if s.ipv4conn != nil {
