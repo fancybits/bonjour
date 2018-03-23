@@ -610,6 +610,11 @@ func (s *Server) appendAddrs(list []dns.RR, ttl uint32, ifIndex int) []dns.RR {
 		v4 = s.service.AddrIPv4
 		v6 = s.service.AddrIPv6
 	}
+	if ttl > 0 {
+		// force low timeout for A/AAAA responses, as network interface
+		// up state and IPs are dynamic.
+		ttl = 120
+	}
 	for _, ipv4 := range v4 {
 		a := &dns.A{
 			Hdr: dns.RR_Header{
