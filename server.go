@@ -25,7 +25,7 @@ const (
 
 // Register a service by given arguments. This call will take the system's hostname
 // and lookup IP by that hostname.
-func Register(instance, service, domain string, port int, text []string, ifaces []net.Interface) (*Server, error) {
+func Register(instance, service, domain string, port int, text []string, ifaces []net.Interface, ttl uint32) (*Server, error) {
 	entry := NewServiceEntry(instance, service, domain)
 	entry.Port = port
 	entry.Text = text
@@ -59,17 +59,7 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 		ifaces = listMulticastInterfaces()
 	}
 
-	for _, iface := range ifaces {
-		v4, v6 := addrsForInterface(&iface)
-		entry.AddrIPv4 = append(entry.AddrIPv4, v4...)
-		entry.AddrIPv6 = append(entry.AddrIPv6, v6...)
-	}
-
-	if entry.AddrIPv4 == nil && entry.AddrIPv6 == nil {
-		return nil, fmt.Errorf("Could not determine host IP addresses")
-	}
-
-	s, err := newServer(ifaces)
+	s, err := newServer(ifaces, ttl)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +73,7 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 
 // RegisterProxy registers a service proxy. This call will skip the hostname/IP lookup and
 // will use the provided values.
-func RegisterProxy(instance, service, domain string, port int, host string, ips []string, text []string, ifaces []net.Interface) (*Server, error) {
+func RegisterProxy(instance, service, domain string, port int, host string, text []string, ifaces []net.Interface, ttl uint32) (*Server, error) {
 	entry := NewServiceEntry(instance, service, domain)
 	entry.Port = port
 	entry.Text = text
@@ -109,24 +99,11 @@ func RegisterProxy(instance, service, domain string, port int, host string, ips 
 		entry.HostName = fmt.Sprintf("%s.%s.", trimDot(entry.HostName), trimDot(entry.Domain))
 	}
 
-	for _, ip := range ips {
-		ipAddr := net.ParseIP(ip)
-		if ipAddr == nil {
-			return nil, fmt.Errorf("Failed to parse given IP: %v", ip)
-		} else if ipv4 := ipAddr.To4(); ipv4 != nil {
-			entry.AddrIPv4 = append(entry.AddrIPv4, ipAddr)
-		} else if ipv6 := ipAddr.To16(); ipv6 != nil {
-			entry.AddrIPv6 = append(entry.AddrIPv6, ipAddr)
-		} else {
-			return nil, fmt.Errorf("The IP is neither IPv4 nor IPv6: %#v", ipAddr)
-		}
-	}
-
 	if len(ifaces) == 0 {
 		ifaces = listMulticastInterfaces()
 	}
 
-	s, err := newServer(ifaces)
+	s, err := newServer(ifaces, ttl)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +134,7 @@ type Server struct {
 }
 
 // Constructs server structure
-func newServer(ifaces []net.Interface) (*Server, error) {
+func newServer(ifaces []net.Interface, ttl uint32) (*Server, error) {
 	ipv4conn, err4 := joinUdp4Multicast(ifaces)
 	if err4 != nil {
 		log.Printf("[zeroconf] no suitable IPv4 interface: %s", err4.Error())
@@ -171,11 +148,14 @@ func newServer(ifaces []net.Interface) (*Server, error) {
 		return nil, fmt.Errorf("No supported interface")
 	}
 
+	if ttl == 0 {
+		ttl = 3200
+	}
 	s := &Server{
 		ipv4conn:       ipv4conn,
 		ipv6conn:       ipv6conn,
 		ifaces:         ifaces,
-		ttl:            3200,
+		ttl:            ttl,
 		shouldShutdown: make(chan struct{}),
 	}
 
@@ -610,8 +590,11 @@ func (s *Server) appendAddrs(list []dns.RR, ttl uint32, ifIndex int) []dns.RR {
 	if iface != nil {
 		v4, v6 = addrsForInterface(iface)
 	} else {
-		v4 = s.service.AddrIPv4
-		v6 = s.service.AddrIPv6
+		for _, iface := range s.ifaces {
+			i4, i6 := addrsForInterface(&iface)
+			v4 = append(v4, i4...)
+			v6 = append(v6, i6...)
+		}
 	}
 	if ttl > 0 {
 		// force low timeout for A/AAAA responses, as network interface
