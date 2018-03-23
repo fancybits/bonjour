@@ -1,8 +1,7 @@
-package bonjour
+package zeroconf
 
 import (
 	"fmt"
-	"log"
 	"net"
 
 	"golang.org/x/net/ipv4"
@@ -44,14 +43,17 @@ func joinUdp6Multicast(interfaces []net.Interface) (*ipv6.PacketConn, error) {
 
 	// Join multicast groups to receive announcements
 	pkConn := ipv6.NewPacketConn(udpConn)
+	pkConn.SetControlMessage(ipv6.FlagInterface, true)
 
 	if len(interfaces) == 0 {
 		interfaces = listMulticastInterfaces()
 	}
+	// log.Println("Using multicast interfaces: ", interfaces)
 
 	var failedJoins int
 	for _, iface := range interfaces {
 		if err := pkConn.JoinGroup(&iface, &net.UDPAddr{IP: mdnsGroupIPv6}); err != nil {
+			// log.Println("Udp6 JoinGroup failed for iface ", iface)
 			failedJoins++
 		}
 	}
@@ -66,20 +68,23 @@ func joinUdp6Multicast(interfaces []net.Interface) (*ipv6.PacketConn, error) {
 func joinUdp4Multicast(interfaces []net.Interface) (*ipv4.PacketConn, error) {
 	udpConn, err := net.ListenUDP("udp4", mdnsWildcardAddrIPv4)
 	if err != nil {
-		log.Printf("[ERR] bonjour: Failed to bind to udp4 mutlicast: %v", err)
+		// log.Printf("[ERR] bonjour: Failed to bind to udp4 mutlicast: %v", err)
 		return nil, err
 	}
 
 	// Join multicast groups to receive announcements
 	pkConn := ipv4.NewPacketConn(udpConn)
+	pkConn.SetControlMessage(ipv4.FlagInterface, true)
 
 	if len(interfaces) == 0 {
 		interfaces = listMulticastInterfaces()
 	}
+	// log.Println("Using multicast interfaces: ", interfaces)
 
 	var failedJoins int
 	for _, iface := range interfaces {
 		if err := pkConn.JoinGroup(&iface, &net.UDPAddr{IP: mdnsGroupIPv4}); err != nil {
+			// log.Println("Udp4 JoinGroup failed for iface ", iface)
 			failedJoins++
 		}
 	}
@@ -98,6 +103,9 @@ func listMulticastInterfaces() []net.Interface {
 		return nil
 	}
 	for _, ifi := range ifaces {
+		if (ifi.Flags & net.FlagUp) == 0 {
+			continue
+		}
 		if (ifi.Flags & net.FlagMulticast) > 0 {
 			interfaces = append(interfaces, ifi)
 		}

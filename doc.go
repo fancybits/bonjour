@@ -1,16 +1,14 @@
-// bonjour
+// Package zeroconf is a pure Golang library that employs Multicast DNS-SD for
+// browsing and resolving services in your network and registering own services
+// in the local network.
 //
-// This is a simple Multicast DNS-SD (Apple Bonjour) library written in Golang.
-// You can use it to discover services in the LAN. Pay attention to the
-// infrastructure you are planning to use it (clouds or shared infrastructures
-// usually prevent mDNS from functioning). But it should work in the most
-// office, home and private environments.
+// It basically implements aspects of the standards
+// RFC 6762 (mDNS) and
+// RFC 6763 (DNS-SD).
+// Though it does not support all requirements yet, the aim is to provide a
+// complient solution in the long-term with the community.
 //
-// **IMPORTANT**: It does NOT pretend to be a full & valid implementation of
-// the RFC 6762 & RFC 6763, but it fulfils the requirements of its authors
-// (we just needed service discovery in the LAN environment for our IoT
-// products). The registration code needs a lot of improvements. This code was
-// not tested for Bonjour conformance but have been manually verified to be
-// working using built-in OSX utility `/usr/bin/dns-sd`.
-//
-package bonjour
+// By now, it should be compatible to [Avahi](http://avahi.org/) (tested) and
+// Apple's Bonjour (untested). Should work in the most office, home and private
+// environments.
+package zeroconf

@@ -1,4 +1,4 @@
-package bonjour
+package zeroconf
 
 import (
 	"context"
@@ -48,6 +48,13 @@ func SelectIPTraffic(t IPType) ClientOption {
 	}
 }
 
+// SelectIfaces selects the interfaces to query for mDNS records
+func SelectIfaces(ifaces []net.Interface) ClientOption {
+	return func(o *clientOpts) {
+		o.ifaces = ifaces
+	}
+}
+
 // Resolver acts as entry point for service lookups and to browse the DNS-SD.
 type Resolver struct {
 	c *client
@@ -82,18 +89,21 @@ func (r *Resolver) Browse(ctx context.Context, service, domain string, entries c
 		params.Domain = domain
 	}
 	params.Entries = entries
-
+	ctx, cancel := context.WithCancel(ctx)
 	go r.c.mainloop(ctx, params)
 
 	err := r.c.query(params)
 	if err != nil {
-		_, cancel := context.WithCancel(ctx)
 		cancel()
 		return err
 	}
 	// If previous probe was ok, it should be fine now. In case of an error later on,
 	// the entries' queue is closed.
-	go r.c.periodicQuery(ctx, params)
+	go func() {
+		if err := r.c.periodicQuery(ctx, params); err != nil {
+			cancel()
+		}
+	}()
 
 	return nil
 }
@@ -106,19 +116,21 @@ func (r *Resolver) Lookup(ctx context.Context, instance, service, domain string,
 		params.Domain = domain
 	}
 	params.Entries = entries
-
+	ctx, cancel := context.WithCancel(ctx)
 	go r.c.mainloop(ctx, params)
-
 	err := r.c.query(params)
 	if err != nil {
-		// XXX: replace cancel with own chan for abort on error
-		_, cancel := context.WithCancel(ctx)
+		// cancel mainloop
 		cancel()
 		return err
 	}
 	// If previous probe was ok, it should be fine now. In case of an error later on,
 	// the entries' queue is closed.
-	go r.c.periodicQuery(ctx, params)
+	go func() {
+		if err := r.c.periodicQuery(ctx, params); err != nil {
+			cancel()
+		}
+	}()
 
 	return nil
 }
@@ -336,7 +348,7 @@ func (c *client) recv(ctx context.Context, l interface{}, msgCh chan *dns.Msg) {
 		}
 		msg := new(dns.Msg)
 		if err := msg.Unpack(buf[:n]); err != nil {
-			log.Printf("[WARN] mdns: Failed to unpack packet: %v", err)
+			// log.Printf("[WARN] mdns: Failed to unpack packet: %v", err)
 			continue
 		}
 		select {
@@ -366,12 +378,8 @@ func (c *client) periodicQuery(ctx context.Context, params *LookupParams) error 
 	for {
 		// Do periodic query.
 		if err := c.query(params); err != nil {
-			// XXX: use own error handling instead of misuse of context
-			_, cancel := context.WithCancel(ctx)
-			cancel()
 			return err
 		}
-
 		// Backoff and cancel logic.
 		wait := bo.NextBackOff()
 		if wait == backoff.Stop {
@@ -404,14 +412,15 @@ func (c *client) query(params *LookupParams) error {
 
 	// send the query
 	m := new(dns.Msg)
-	m.RecursionDesired = false
 	if serviceInstanceName != "" {
 		m.Question = []dns.Question{
 			dns.Question{serviceInstanceName, dns.TypeSRV, dns.ClassINET},
 			dns.Question{serviceInstanceName, dns.TypeTXT, dns.ClassINET},
 		}
+		m.RecursionDesired = false
 	} else {
 		m.SetQuestion(serviceName, dns.TypePTR)
+		m.RecursionDesired = false
 	}
 	if err := c.sendQuery(m); err != nil {
 		return err

@@ -1,165 +1,108 @@
-bonjour
-====
+ZeroConf: Service Discovery with mDNS
+=====================================
+ZeroConf is a pure Golang library that employs Multicast DNS-SD for
 
-This is a simple Multicast DNS-SD (Apple Bonjour) library written in Golang. You can use it to discover services in the LAN. Pay attention to the infrastructure you are planning to use it (clouds or shared infrastructures usually prevent mDNS from functioning). But it should work in the most office, home and private environments.
+* browsing and resolving services in your network
+* registering own services
 
-**IMPORTANT**: It does NOT pretend to be a full & valid implementation of the RFC 6762 & RFC 6763, but it fulfils the requirements of its authors (we just needed service discovery in the LAN environment for our IoT products). The registration code needs a lot of improvements. This code was not tested for Bonjour conformance but have been manually verified to be working using built-in OSX utility `/usr/bin/dns-sd`.
+in the local network.
 
-Detailed documentation: [![GoDoc](https://godoc.org/github.com/oleksandr/bonjour?status.svg)](https://godoc.org/github.com/oleksandr/bonjour)
+It basically implements aspects of the standards
+[RFC 6762](https://tools.ietf.org/html/rfc6762) (mDNS) and
+[RFC 6763](https://tools.ietf.org/html/rfc6763) (DNS-SD).
+Though it does not support all requirements yet, the aim is to provide a complient solution in the long-term with the community.
 
+By now, it should be compatible to [Avahi](http://avahi.org/) (tested) and Apple's Bonjour (untested).
+Target environments: private LAN/Wifi, small or isolated networks.
 
-##Browsing available services in your local network
+[![GoDoc](https://godoc.org/github.com/grandcat/zeroconf?status.svg)](https://godoc.org/github.com/grandcat/zeroconf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/grandcat/zeroconf)](https://goreportcard.com/report/github.com/grandcat/zeroconf)
 
-Here is an example how to browse services by their type:
-
+## Install
+Nothing is as easy as that:
+```bash
+$ go get -u github.com/grandcat/zeroconf
 ```
-package main
+This package requires **Go 1.7** (context in std lib) or later.
 
-import (
-    "log"
-    "os"
-    "time"
+## Browse for services in your local network
 
-    "github.com/oleksandr/bonjour"
-)
-
-func main() {
-    resolver, err := bonjour.NewResolver(nil)
-    if err != nil {
-        log.Println("Failed to initialize resolver:", err.Error())
-        os.Exit(1)
-    }
-
-    results := make(chan *bonjour.ServiceEntry)
-
-    go func(results chan *bonjour.ServiceEntry, exitCh chan<- bool) {
-        for e := range results {
-            log.Printf("%s", e.Instance)
-            exitCh <- true
-            time.Sleep(1e9)
-            os.Exit(0)
-        }
-    }(results, resolver.Exit)
-
-    err = resolver.Browse("_foobar._tcp", "local.", results)
-    if err != nil {
-        log.Println("Failed to browse:", err.Error())
-    }
-
-    select {}
+```go
+// Discover all services on the network (e.g. _workstation._tcp)
+resolver, err := zeroconf.NewResolver(nil)
+if err != nil {
+    log.Fatalln("Failed to initialize resolver:", err.Error())
 }
-```
 
-##Doing a lookup of a specific service instance
-
-Here is an example of looking up service by service instance name:
-
-```
-package main
-
-import (
-    "log"
-    "os"
-    "time"
-
-    "github.com/oleksandr/bonjour"
-)
-
-func main() {
-    resolver, err := bonjour.NewResolver(nil)
-    if err != nil {
-        log.Println("Failed to initialize resolver:", err.Error())
-        os.Exit(1)
+entries := make(chan *zeroconf.ServiceEntry)
+go func(results <-chan *zeroconf.ServiceEntry) {
+    for entry := range results {
+        log.Println(entry)
     }
+    log.Println("No more entries.")
+}(entries)
 
-    results := make(chan *bonjour.ServiceEntry)
-
-    go func(results chan *bonjour.ServiceEntry, exitCh chan<- bool) {
-        for e := range results {
-            log.Printf("%s", e.Instance)
-            exitCh <- true
-            time.Sleep(1e9)
-            os.Exit(0)
-        }
-    }(results, resolver.Exit)
-
-    err = resolver.Lookup("DEMO", "_foobar._tcp", "", results)
-    if err != nil {
-        log.Println("Failed to browse:", err.Error())
-    }
-
-    select {}
+ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+defer cancel()
+err = resolver.Browse(ctx, "_workstation._tcp", "local.", entries)
+if err != nil {
+    log.Fatalln("Failed to browse:", err.Error())
 }
+
+<-ctx.Done()
+```
+See https://github.com/grandcat/zeroconf/blob/master/examples/resolv/client.go.
+
+## Lookup a specific service instance
+
+```go
+// Example filled soon.
 ```
 
+## Register a service
 
-##Registering a service
-
-Registering a service is as simple as the following:
-
-```
-package main
-
-import (
-    "log"
-    "os"
-    "os/signal"
-    "time"
-
-    "github.com/oleksandr/bonjour"
-)
-
-func main() {
-    // Run registration (blocking call)
-    s, err := bonjour.Register("Foo Service", "_foobar._tcp", "", 9999, []string{"txtv=1", "app=test"}, nil, 0)
-    if err != nil {
-        log.Fatalln(err.Error())
-    }
-
-    // Ctrl+C handling
-    handler := make(chan os.Signal, 1)
-    signal.Notify(handler, os.Interrupt)
-    for sig := range handler {
-        if sig == os.Interrupt {
-            s.Shutdown()
-            time.Sleep(1e9)
-            break
-        }
-    }
+```go
+server, err := zeroconf.Register("GoZeroconf", "_workstation._tcp", "local.", 42424, []string{"txtv=0", "lo=1", "la=2"}, nil)
+if err != nil {
+    panic(err)
 }
-```
+defer server.Shutdown()
 
-
-##Registering a service proxy (manually specifying host/ip and avoiding lookups)
-
-```
-package main
-
-import (
-    "log"
-    "os"
-    "os/signal"
-    "time"
-
-    "github.com/oleksandr/bonjour"
-)
-
-func main() {
-    // Run registration (blocking call)
-    s, err := bonjour.RegisterProxy("Proxy Service", "_foobar._tcp", "", 9999, "octopus", "10.0.0.111", []string{"txtv=1", "app=test"}, nil, 0)
-    if err != nil {
-        log.Fatalln(err.Error())
-    }
-
-    // Ctrl+C handling
-    handler := make(chan os.Signal, 1)
-    signal.Notify(handler, os.Interrupt)
-    for sig := range handler {
-        if sig == os.Interrupt {
-            s.Shutdown()
-            time.Sleep(1e9)
-            break
-        }
-    }
+// Clean exit.
+sig := make(chan os.Signal, 1)
+signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+select {
+case <-sig:
+    // Exit by user
+case <-time.After(time.Second * 120):
+    // Exit by timeout
 }
+
+log.Println("Shutting down.")
 ```
+See https://github.com/grandcat/zeroconf/blob/master/examples/register/server.go.
+
+## Features and ToDo's
+This list gives a quick impression about the state of this library.
+See what needs to be done and submit a pull request :)
+
+* [x] Browse / Lookup / Register services
+* [x] Multiple IPv6 / IPv4 addresses support
+* [x] Send multiple probes (exp. back-off) if no service answers (*)
+* [ ] Timestamp entries for TTL checks
+* [ ] Compare new multicasts with already received services
+
+_Notes:_
+
+(*) The denoted functionalities might not be 100% standard conform, but should not be a deal breaker.
+    Some test scenarios demonstrated that the overall robustness and performance increases when applying the suggested improvements.
+
+## Credits
+Great thanks to [hashicorp](https://github.com/hashicorp/mdns) and to [oleksandr](https://github.com/oleksandr/bonjour) and all contributing authors for the code this projects bases upon.
+Large parts of the code are still the same.
+
+However, there are several reasons why I decided to create a fork of the original project:
+The previous project seems to be unmaintained. There are several useful pull requests waiting. I merged most of them in this project.
+Still, the implementation has some bugs and lacks some other features that make it quite unreliable in real LAN environments when running continously.
+Last but not least, the aim for this project is to build a solution that targets standard conformance in the long term with the support of the community.
+Though, resiliency should remain a top goal.
