@@ -263,7 +263,7 @@ func (s *Server) recv4(c *ipv4.PacketConn) {
 				ifIndex = cm.IfIndex
 			}
 			if err := s.parsePacket(buf[:n], ifIndex, from); err != nil {
-				// log.Printf("[ERR] zeroconf: failed to handle query v4: %v", err)
+				log.Printf("[ERR] zeroconf: failed to handle query v4: %v", err)
 			}
 		}
 	}
@@ -291,7 +291,7 @@ func (s *Server) recv6(c *ipv6.PacketConn) {
 				ifIndex = cm.IfIndex
 			}
 			if err := s.parsePacket(buf[:n], ifIndex, from); err != nil {
-				// log.Printf("[ERR] zeroconf: failed to handle query v6: %v", err)
+				log.Printf("[ERR] zeroconf: failed to handle query v6: %v", err)
 			}
 		}
 	}
@@ -325,7 +325,7 @@ func (s *Server) handleQuery(query *dns.Msg, ifIndex int, from net.Addr) error {
 		resp.Answer = []dns.RR{}
 		resp.Extra = []dns.RR{}
 		if err = s.handleQuestion(q, &resp, query, ifIndex); err != nil {
-			// log.Printf("[ERR] zeroconf: failed to handle question %v: %v", q, err)
+			log.Printf("[ERR] zeroconf: failed to handle question %v: %v", q, err)
 			continue
 		}
 		// Check if there is an answer
