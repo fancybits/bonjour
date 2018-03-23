@@ -241,6 +241,7 @@ func (s *Server) recv4(c *ipv4.PacketConn) {
 			var ifIndex int
 			n, cm, from, err := c.ReadFrom(buf)
 			if err != nil {
+				log.Printf("[ERR] zeroconf: failed to read v4: %v", err)
 				continue
 			}
 			if cm != nil {
@@ -269,6 +270,7 @@ func (s *Server) recv6(c *ipv6.PacketConn) {
 			var ifIndex int
 			n, cm, from, err := c.ReadFrom(buf)
 			if err != nil {
+				log.Printf("[ERR] zeroconf: failed to read v6: %v", err)
 				continue
 			}
 			if cm != nil {
@@ -697,11 +699,11 @@ func (s *Server) multicastResponse(msg *dns.Msg, ifIndex int) error {
 		var wcm ipv4.ControlMessage
 		if ifIndex != 0 {
 			wcm.IfIndex = ifIndex
-			s.ipv4conn.WriteTo(buf, &wcm, ipv4Addr)
+			_, err = s.ipv4conn.WriteTo(buf, &wcm, ipv4Addr)
 		} else {
 			for _, intf := range s.ifaces {
 				wcm.IfIndex = intf.Index
-				s.ipv4conn.WriteTo(buf, &wcm, ipv4Addr)
+				_, err = s.ipv4conn.WriteTo(buf, &wcm, ipv4Addr)
 			}
 		}
 	}
@@ -710,15 +712,15 @@ func (s *Server) multicastResponse(msg *dns.Msg, ifIndex int) error {
 		var wcm ipv6.ControlMessage
 		if ifIndex != 0 {
 			wcm.IfIndex = ifIndex
-			s.ipv6conn.WriteTo(buf, &wcm, ipv6Addr)
+			_, err = s.ipv6conn.WriteTo(buf, &wcm, ipv6Addr)
 		} else {
 			for _, intf := range s.ifaces {
 				wcm.IfIndex = intf.Index
-				s.ipv6conn.WriteTo(buf, &wcm, ipv6Addr)
+				_, err = s.ipv6conn.WriteTo(buf, &wcm, ipv6Addr)
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 func isUnicastQuestion(q dns.Question) bool {
