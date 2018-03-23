@@ -396,6 +396,9 @@ func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, i
 
 	case s.service.ServiceInstanceName():
 		s.composeLookupAnswers(resp, s.ttl, ifIndex)
+
+	case s.service.HostName:
+		resp.Answer = s.appendAddrs(resp.Answer, s.ttl, ifIndex)
 	}
 
 	return nil
