@@ -166,6 +166,10 @@ func (s *Server) Service() *ServiceEntry {
 	return s.service
 }
 
+func (s *Server) Probe() {
+	s.probe()
+}
+
 // Start listeners and waits for the shutdown signal from exit channel
 func (s *Server) mainloop() {
 	if s.ipv4conn != nil {
