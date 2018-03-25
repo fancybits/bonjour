@@ -241,7 +241,7 @@ func (s *Server) recv4(c *ipv4.PacketConn) {
 			var ifIndex int
 			n, cm, from, err := c.ReadFrom(buf)
 			if err != nil {
-				log.Printf("[ERR] zeroconf: failed to read v4: %v", err)
+				// log.Printf("[ERR] zeroconf: failed to read v4: %v", err)
 				continue
 			}
 			if cm != nil {
@@ -270,7 +270,7 @@ func (s *Server) recv6(c *ipv6.PacketConn) {
 			var ifIndex int
 			n, cm, from, err := c.ReadFrom(buf)
 			if err != nil {
-				log.Printf("[ERR] zeroconf: failed to read v6: %v", err)
+				// log.Printf("[ERR] zeroconf: failed to read v6: %v", err)
 				continue
 			}
 			if cm != nil {
