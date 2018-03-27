@@ -706,9 +706,13 @@ func (s *Server) multicastResponse(msg *dns.Msg, ifIndex int) error {
 				_, err = s.ipv4conn.WriteTo(buf, &wcm, ipv4Addr)
 			}
 		}
+		if err != nil {
+			// log.Printf("[ERR] multicastResponse failed v4: %v", err)
+		}
 	}
 
 	if s.ipv6conn != nil {
+		err = nil
 		var wcm ipv6.ControlMessage
 		if ifIndex != 0 {
 			wcm.IfIndex = ifIndex
@@ -719,8 +723,12 @@ func (s *Server) multicastResponse(msg *dns.Msg, ifIndex int) error {
 				_, err = s.ipv6conn.WriteTo(buf, &wcm, ipv6Addr)
 			}
 		}
+		if err != nil {
+			// log.Printf("[ERR] multicastResponse failed v6: %v", err)
+		}
 	}
-	return err
+
+	return nil
 }
 
 func isUnicastQuestion(q dns.Question) bool {
