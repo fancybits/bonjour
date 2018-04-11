@@ -639,24 +639,16 @@ func (s *Server) appendAddrs(list []dns.RR, ttl uint32, ifIndex int, flushCache 
 }
 
 func addrsForInterface(iface *net.Interface) ([]net.IP, []net.IP) {
-	var v4, v6, v6local []net.IP
+	var v4, v6 []net.IP
 	addrs, _ := iface.Addrs()
 	for _, address := range addrs {
 		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
 				v4 = append(v4, ipnet.IP)
 			} else {
-				switch ip := ipnet.IP.To16(); ip != nil {
-				case ip.IsGlobalUnicast():
-					v6 = append(v6, ipnet.IP)
-				case ip.IsLinkLocalUnicast():
-					v6local = append(v6local, ipnet.IP)
-				}
+				v6 = append(v6, ipnet.IP)
 			}
 		}
-	}
-	if len(v6) == 0 {
-		v6 = v6local
 	}
 	return v4, v6
 }
