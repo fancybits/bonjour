@@ -301,16 +301,16 @@ func (s *Server) handleQuery(query *dns.Msg, ifIndex int, from net.Addr) error {
 	}
 
 	// Handle each question
+	isLegacyUnicast := from.(*net.UDPAddr).Port != 5353
 	var err error
 	for _, q := range query.Question {
 		resp := dns.Msg{}
 		resp.SetReply(query)
 		resp.RecursionDesired = false
 		resp.Authoritative = true
-		resp.Question = nil // RFC6762 section 6 "responses MUST NOT contain any questions"
 		resp.Answer = []dns.RR{}
 		resp.Extra = []dns.RR{}
-		if err = s.handleQuestion(q, &resp, query, ifIndex); err != nil {
+		if err = s.handleQuestion(q, &resp, query, ifIndex, isLegacyUnicast); err != nil {
 			log.Printf("[ERR] zeroconf: failed to handle question %v: %v", q, err)
 			continue
 		}
@@ -318,8 +318,11 @@ func (s *Server) handleQuery(query *dns.Msg, ifIndex int, from net.Addr) error {
 		if len(resp.Answer) == 0 {
 			continue
 		}
+		if !isLegacyUnicast {
+			resp.Question = nil // RFC6762 section 6 "responses MUST NOT contain any questions"
+		}
 
-		if isUnicastQuestion(q) {
+		if isUnicastQuestion(q) || isLegacyUnicast {
 			// Send unicast
 			if e := s.unicastResponse(&resp, ifIndex, from); e != nil {
 				err = e
@@ -362,7 +365,7 @@ func isKnownAnswer(resp *dns.Msg, query *dns.Msg) bool {
 }
 
 // handleQuestion is used to handle an incoming question
-func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, ifIndex int) error {
+func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, ifIndex int, isLegacyUnicast bool) error {
 	if s.service == nil {
 		return nil
 	}
@@ -381,7 +384,7 @@ func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, i
 		}
 
 	case s.service.ServiceInstanceName():
-		s.composeLookupAnswers(resp, s.ttl, ifIndex, false)
+		s.composeLookupAnswers(resp, s.ttl, ifIndex, false, isLegacyUnicast)
 
 	case s.service.HostName:
 		resp.Answer = s.appendAddrs(resp.Answer, s.ttl, ifIndex, false)
@@ -428,12 +431,17 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ifIndex int) {
 	resp.Extra = s.appendAddrs(resp.Extra, s.ttl, ifIndex, false)
 }
 
-func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, flushCache bool) {
+func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, flushCache bool, isLegacyUnicast bool) {
 	// From RFC6762
 	//    The most significant bit of the rrclass for a record in the Answer
 	//    Section of a response message is the Multicast DNS cache-flush bit
 	//    and is discussed in more detail below in Section 10.2, "Announcements
 	//    to Flush Outdated Cache Entries".
+	var cacheFlushBit uint16
+	if !isLegacyUnicast {
+		cacheFlushBit = qClassCacheFlush
+	}
+	/*
 	ptr := &dns.PTR{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceName(),
@@ -443,11 +451,12 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		},
 		Ptr: s.service.ServiceInstanceName(),
 	}
+	*/
 	srv := &dns.SRV{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeSRV,
-			Class:  dns.ClassINET | qClassCacheFlush,
+			Class:  dns.ClassINET | cacheFlushBit,
 			Ttl:    ttl,
 		},
 		Priority: 0,
@@ -455,11 +464,13 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		Port:     uint16(s.service.Port),
 		Target:   s.service.HostName,
 	}
+	resp.Answer = append(resp.Answer, srv)
+	/*
 	txt := &dns.TXT{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeTXT,
-			Class:  dns.ClassINET | qClassCacheFlush,
+			Class:  dns.ClassINET | cacheFlushBit,
 			Ttl:    ttl,
 		},
 		Txt: s.service.Text,
@@ -474,8 +485,9 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		Ptr: s.service.ServiceName(),
 	}
 	resp.Answer = append(resp.Answer, srv, txt, ptr, dnssd)
+	*/
 
-	resp.Answer = s.appendAddrs(resp.Answer, ttl, ifIndex, flushCache)
+	resp.Extra = s.appendAddrs(resp.Extra, ttl, ifIndex, flushCache)
 }
 
 func (s *Server) serviceTypeName(resp *dns.Msg, ttl uint32) {
@@ -552,7 +564,7 @@ func (s *Server) probe() {
 			// TODO: make response authoritative if we are the publisher
 			resp.Answer = []dns.RR{}
 			resp.Extra = []dns.RR{}
-			s.composeLookupAnswers(resp, s.ttl, intf.Index, true)
+			s.composeLookupAnswers(resp, s.ttl, intf.Index, true, false)
 			if err := s.multicastResponse(resp, intf.Index); err != nil {
 				log.Println("[ERR] zeroconf: failed to send announcement:", err.Error())
 			}
@@ -586,7 +598,7 @@ func (s *Server) unregister() error {
 	resp.MsgHdr.Response = true
 	resp.Answer = []dns.RR{}
 	resp.Extra = []dns.RR{}
-	s.composeLookupAnswers(resp, 0, 0, true)
+	s.composeLookupAnswers(resp, 0, 0, true, false)
 	return s.multicastResponse(resp, 0)
 }
 
