@@ -51,7 +51,7 @@ func Register(instance, service, domain string, port int, text []string, ifaces 
 		}
 	}
 
-	if !strings.HasSuffix(trimDot(entry.HostName), entry.Domain) {
+	if !strings.HasSuffix(trimDot(entry.HostName), trimDot(entry.Domain)) {
 		entry.HostName = fmt.Sprintf("%s.%s.", trimDot(entry.HostName), trimDot(entry.Domain))
 	}
 
@@ -95,7 +95,7 @@ func RegisterProxy(instance, service, domain string, port int, host string, text
 		return nil, fmt.Errorf("Missing port")
 	}
 
-	if !strings.HasSuffix(trimDot(entry.HostName), entry.Domain) {
+	if !strings.HasSuffix(trimDot(entry.HostName), trimDot(entry.Domain)) {
 		entry.HostName = fmt.Sprintf("%s.%s.", trimDot(entry.HostName), trimDot(entry.Domain))
 	}
 
