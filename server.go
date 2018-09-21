@@ -369,31 +369,35 @@ func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, i
 	if s.service == nil {
 		return nil
 	}
+	ttl := s.ttl
+	if isLegacyUnicast {
+		ttl = 10
+	}
 
 	switch q.Name {
 	case s.service.ServiceTypeName():
-		s.serviceTypeName(resp, s.ttl)
+		s.serviceTypeName(resp, ttl)
 		if isKnownAnswer(resp, query) {
 			resp.Answer = nil
 		}
 
 	case s.service.ServiceName():
-		s.composeBrowsingAnswers(resp, ifIndex)
+		s.composeBrowsingAnswers(resp, ttl, ifIndex)
 		if isKnownAnswer(resp, query) {
 			resp.Answer = nil
 		}
 
 	case s.service.ServiceInstanceName():
-		s.composeLookupAnswers(resp, s.ttl, ifIndex, false, isLegacyUnicast)
+		s.composeLookupAnswers(resp, ttl, ifIndex, false, isLegacyUnicast)
 
 	case s.service.HostName:
-		resp.Answer = s.appendAddrs(resp.Answer, s.ttl, ifIndex, false)
+		resp.Answer = s.appendAddrs(resp.Answer, ttl, ifIndex, false)
 	}
 
 	return nil
 }
 
-func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ifIndex int) {
+func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) {
 	ptr := &dns.PTR{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceName(),
