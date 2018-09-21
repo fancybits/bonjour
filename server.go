@@ -375,22 +375,22 @@ func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, i
 	}
 
 	switch q.Name {
-	case s.service.ServiceTypeName():
+	case s.service.ServiceTypeName(): // _services._dns-sd._udp.local.
 		s.serviceTypeName(resp, ttl)
 		if isKnownAnswer(resp, query) {
 			resp.Answer = nil
 		}
 
-	case s.service.ServiceName():
+	case s.service.ServiceName(): // _type._tcp.local.
 		s.composeBrowsingAnswers(resp, ttl, ifIndex)
 		if isKnownAnswer(resp, query) {
 			resp.Answer = nil
 		}
 
-	case s.service.ServiceInstanceName():
+	case s.service.ServiceInstanceName(): // svc._type._tcp.local.
 		s.composeLookupAnswers(resp, ttl, ifIndex, false, isLegacyUnicast, false)
 
-	case s.service.HostName:
+	case s.service.HostName: // host.local.
 		resp.Answer = s.appendAddrs(resp.Answer, ttl, ifIndex, false)
 	}
 
