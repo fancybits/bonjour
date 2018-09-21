@@ -21,6 +21,8 @@ import (
 const (
 	// Number of Multicast responses sent for a query message (default: 1 < x < 9)
 	multicastRepetitions = 2
+	// Recommended TTL for records containing hostnames (SRV, A, AAAA)
+	transientRecordTTL = 120
 )
 
 // Register a service by given arguments. This call will take the system's hostname
@@ -419,12 +421,16 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) 
 		},
 		Txt: s.service.Text,
 	}
+	srvTtl := ttl
+	if srvTtl > transientRecordTTL {
+		srvTtl = transientRecordTTL
+	}
 	srv := &dns.SRV{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeSRV,
 			Class:  dns.ClassINET,
-			Ttl:    ttl,
+			Ttl:    srvTtl,
 		},
 		Priority: 0,
 		Weight:   0,
@@ -455,12 +461,16 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		},
 		Ptr: s.service.ServiceInstanceName(),
 	}
+	srvTtl := ttl
+	if srvTtl > transientRecordTTL {
+		srvTtl = transientRecordTTL
+	}
 	srv := &dns.SRV{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeSRV,
 			Class:  dns.ClassINET | cacheFlushBit,
-			Ttl:    ttl,
+			Ttl:    srvTtl,
 		},
 		Priority: 0,
 		Weight:   0,
@@ -528,7 +538,7 @@ func (s *Server) probe() {
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeSRV,
 			Class:  dns.ClassINET,
-			Ttl:    s.ttl,
+			Ttl:    transientRecordTTL,
 		},
 		Priority: 0,
 		Weight:   0,
@@ -621,10 +631,10 @@ func (s *Server) appendAddrs(list []dns.RR, ttl uint32, ifIndex int, flushCache 
 			v6 = append(v6, i6...)
 		}
 	}
-	if ttl > 120 {
+	if ttl > transientRecordTTL {
 		// force low timeout for A/AAAA responses, as network interface
 		// up state and IPs are dynamic.
-		ttl = 120
+		ttl = transientRecordTTL
 	}
 	var cacheFlushBit uint16
 	if flushCache {
