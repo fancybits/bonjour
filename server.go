@@ -566,8 +566,9 @@ func (s *Server) probe() {
 		for _, intf := range s.ifaces {
 			resp := new(dns.Msg)
 			resp.MsgHdr.Response = true
-			// TODO: make response authoritative if we are the publisher
 			resp.Compress = true
+			resp.RecursionDesired = false
+			resp.Authoritative = true
 			resp.Answer = []dns.RR{}
 			resp.Extra = []dns.RR{}
 			s.composeLookupAnswers(resp, s.ttl, intf.Index, true, false, true)
