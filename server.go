@@ -388,7 +388,7 @@ func (s *Server) handleQuestion(q dns.Question, resp *dns.Msg, query *dns.Msg, i
 		}
 
 	case s.service.ServiceInstanceName():
-		s.composeLookupAnswers(resp, ttl, ifIndex, false, isLegacyUnicast)
+		s.composeLookupAnswers(resp, ttl, ifIndex, false, isLegacyUnicast, false)
 
 	case s.service.HostName:
 		resp.Answer = s.appendAddrs(resp.Answer, ttl, ifIndex, false)
@@ -435,7 +435,7 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) 
 	resp.Extra = s.appendAddrs(resp.Extra, s.ttl, ifIndex, false)
 }
 
-func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, flushCache bool, isLegacyUnicast bool) {
+func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, flushCache bool, isLegacyUnicast bool, isProbe bool) {
 	// From RFC6762
 	//    The most significant bit of the rrclass for a record in the Answer
 	//    Section of a response message is the Multicast DNS cache-flush bit
@@ -445,7 +445,6 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 	if !isLegacyUnicast {
 		cacheFlushBit = qClassCacheFlush
 	}
-	/*
 	ptr := &dns.PTR{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceName(),
@@ -455,7 +454,6 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		},
 		Ptr: s.service.ServiceInstanceName(),
 	}
-	*/
 	srv := &dns.SRV{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceInstanceName(),
@@ -468,8 +466,6 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		Port:     uint16(s.service.Port),
 		Target:   s.service.HostName,
 	}
-	resp.Answer = append(resp.Answer, srv)
-	/*
 	txt := &dns.TXT{
 		Hdr: dns.RR_Header{
 			Name:   s.service.ServiceInstanceName(),
@@ -488,10 +484,14 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 		},
 		Ptr: s.service.ServiceName(),
 	}
-	resp.Answer = append(resp.Answer, srv, txt, ptr, dnssd)
-	*/
 
-	resp.Extra = s.appendAddrs(resp.Extra, ttl, ifIndex, flushCache)
+	if isProbe {
+		resp.Answer = append(resp.Answer, srv, txt, ptr, dnssd)
+		resp.Answer = s.appendAddrs(resp.Answer, ttl, ifIndex, flushCache)
+	} else {
+		resp.Answer = append(resp.Answer, srv)
+		resp.Extra = s.appendAddrs(resp.Extra, ttl, ifIndex, flushCache)
+	}
 }
 
 func (s *Server) serviceTypeName(resp *dns.Msg, ttl uint32) {
@@ -568,7 +568,7 @@ func (s *Server) probe() {
 			// TODO: make response authoritative if we are the publisher
 			resp.Answer = []dns.RR{}
 			resp.Extra = []dns.RR{}
-			s.composeLookupAnswers(resp, s.ttl, intf.Index, true, false)
+			s.composeLookupAnswers(resp, s.ttl, intf.Index, true, false, true)
 			if err := s.multicastResponse(resp, intf.Index); err != nil {
 				log.Println("[ERR] zeroconf: failed to send announcement:", err.Error())
 			}
@@ -602,7 +602,7 @@ func (s *Server) unregister() error {
 	resp.MsgHdr.Response = true
 	resp.Answer = []dns.RR{}
 	resp.Extra = []dns.RR{}
-	s.composeLookupAnswers(resp, 0, 0, true, false)
+	s.composeLookupAnswers(resp, 0, 0, true, false, true)
 	return s.multicastResponse(resp, 0)
 }
 
