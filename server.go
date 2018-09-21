@@ -149,7 +149,7 @@ func newServer(ifaces []net.Interface, ttl uint32) (*Server, error) {
 	}
 
 	if ttl == 0 {
-		ttl = 3200
+		ttl = 4500
 	}
 	s := &Server{
 		ipv4conn:       ipv4conn,
