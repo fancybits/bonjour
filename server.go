@@ -306,6 +306,7 @@ func (s *Server) handleQuery(query *dns.Msg, ifIndex int, from net.Addr) error {
 	for _, q := range query.Question {
 		resp := dns.Msg{}
 		resp.SetReply(query)
+		resp.Compress = true
 		resp.RecursionDesired = false
 		resp.Authoritative = true
 		resp.Answer = []dns.RR{}
@@ -566,6 +567,7 @@ func (s *Server) probe() {
 			resp := new(dns.Msg)
 			resp.MsgHdr.Response = true
 			// TODO: make response authoritative if we are the publisher
+			resp.Compress = true
 			resp.Answer = []dns.RR{}
 			resp.Extra = []dns.RR{}
 			s.composeLookupAnswers(resp, s.ttl, intf.Index, true, false, true)
