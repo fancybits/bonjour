@@ -498,11 +498,10 @@ func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, fl
 
 	if isProbe {
 		resp.Answer = append(resp.Answer, srv, txt, ptr, dnssd)
-		resp.Answer = s.appendAddrs(resp.Answer, ttl, ifIndex, flushCache)
 	} else {
 		resp.Answer = append(resp.Answer, srv)
-		resp.Extra = s.appendAddrs(resp.Extra, ttl, ifIndex, flushCache)
 	}
+	resp.Extra = s.appendAddrs(resp.Extra, ttl, ifIndex, flushCache)
 }
 
 func (s *Server) serviceTypeName(resp *dns.Msg, ttl uint32) {
