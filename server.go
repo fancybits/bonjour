@@ -403,7 +403,7 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) 
 			Name:   s.service.ServiceName(),
 			Rrtype: dns.TypePTR,
 			Class:  dns.ClassINET,
-			Ttl:    s.ttl,
+			Ttl:    ttl,
 		},
 		Ptr: s.service.ServiceInstanceName(),
 	}
@@ -414,7 +414,7 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) 
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeTXT,
 			Class:  dns.ClassINET,
-			Ttl:    s.ttl,
+			Ttl:    ttl,
 		},
 		Txt: s.service.Text,
 	}
@@ -423,7 +423,7 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) 
 			Name:   s.service.ServiceInstanceName(),
 			Rrtype: dns.TypeSRV,
 			Class:  dns.ClassINET,
-			Ttl:    s.ttl,
+			Ttl:    ttl,
 		},
 		Priority: 0,
 		Weight:   0,
@@ -432,7 +432,7 @@ func (s *Server) composeBrowsingAnswers(resp *dns.Msg, ttl uint32, ifIndex int) 
 	}
 	resp.Extra = append(resp.Extra, srv, txt)
 
-	resp.Extra = s.appendAddrs(resp.Extra, s.ttl, ifIndex, false)
+	resp.Extra = s.appendAddrs(resp.Extra, ttl, ifIndex, false)
 }
 
 func (s *Server) composeLookupAnswers(resp *dns.Msg, ttl uint32, ifIndex int, flushCache bool, isLegacyUnicast bool, isProbe bool) {
@@ -618,7 +618,7 @@ func (s *Server) appendAddrs(list []dns.RR, ttl uint32, ifIndex int, flushCache 
 			v6 = append(v6, i6...)
 		}
 	}
-	if ttl > 0 {
+	if ttl > 120 {
 		// force low timeout for A/AAAA responses, as network interface
 		// up state and IPs are dynamic.
 		ttl = 120
